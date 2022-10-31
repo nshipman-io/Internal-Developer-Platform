@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { TerraformStack } from "cdktf";
+import { TerraformStack, TerraformOutput } from "cdktf";
 import { Vpc } from './.gen/modules/vpc'
 import { SecurityGroup} from "./.gen/modules/security-group";
 
@@ -20,12 +20,9 @@ export class BaseStack extends TerraformStack {
                 Environment: "development",
                 Team: "DevOps"
             }
-
-
-        })
+        });
 
         const securityGroups: {[Key: string]: SecurityGroup} = {};
-
         securityGroups.public = new SecurityGroup(this, "public-sg", {
             name: "public",
             vpcId: vpc.vpcIdOutput,
@@ -33,7 +30,17 @@ export class BaseStack extends TerraformStack {
             egressWithSelf: [{rule: "all-all"}],
             egressCidrBlocks: ["0.0.0.0/0"],
             egressRules: ["all-all"],
-        })
+            ingressWithCidrBlocks: [
+                {
+                    "rule": "http-80-tcp",
+                    "cidr_blocks": "0.0.0.0/0",
+                },
+                {
+                    "rule": "https-443-tcp",
+                    "cidr_blocks": "0.0.0.0/0",
+                }],
+
+        });
 
         securityGroups.app = new SecurityGroup(this, "app-sg", {
             name: "app",
@@ -46,7 +53,7 @@ export class BaseStack extends TerraformStack {
                 "rule": "all-all",
                 "source_security_group_id": securityGroups.public.securityGroupIdOutput,
             }]
-        })
+        });
 
         securityGroups.database = new SecurityGroup(this, "database-sg", {
             name: "database",
@@ -59,6 +66,10 @@ export class BaseStack extends TerraformStack {
                 "rule": "all-all",
                 "source_security_group_id": securityGroups.app.securityGroupIdOutput,
             }]
+        });
+
+        new TerraformOutput(this, "vpc-id", {
+            value: vpc.vpcIdOutput
         })
     }
 
