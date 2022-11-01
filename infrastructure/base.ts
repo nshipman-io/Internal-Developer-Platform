@@ -2,10 +2,16 @@ import { Construct } from "constructs";
 import { TerraformStack, TerraformOutput } from "cdktf";
 import { Vpc } from './.gen/modules/vpc'
 import { SecurityGroup} from "./.gen/modules/security-group";
+import {Dynamodb} from "./.gen/modules/dynamodb";
+import {AwsProvider} from "@cdktf/provider-aws/lib/provider";
 
 export class BaseStack extends TerraformStack {
     constructor(scope: Construct, id: string) {
         super(scope, id);
+
+        new AwsProvider(this, "aws", {
+            region:  "us-east-1"
+        });
 
         const vpc = new Vpc(this, 'nshipmanio-dev-ue1-main', {
             name: id,
@@ -67,10 +73,23 @@ export class BaseStack extends TerraformStack {
                 "source_security_group_id": securityGroups.app.securityGroupIdOutput,
             }]
         });
-
+        const dynamoTable = new Dynamodb(this, 'nshimanio-dev-ue1-dynamodb', {
+            name: `${id}-app-table`,
+            hashKey: "id",
+            attributes: [
+                {
+                    "name": "id",
+                    "type": "S"
+                }
+            ]
+        });
         new TerraformOutput(this, "vpc-id", {
             value: vpc.vpcIdOutput
-        })
+        });
+
+        new TerraformOutput(this, "dynamo-arn", {
+            value: dynamoTable.dynamodbTableArnOutput
+        });
     }
 
 }
