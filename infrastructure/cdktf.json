@@ -19,6 +19,11 @@
       "name": "dynamodb",
       "source": "terraform-aws-modules/dynamodb-table/aws",
       "version": "3.1.1"
+    },
+    {
+      "name": "ecs",
+      "source": "terraform-aws-modules/ecs/aws",
+      "version": "4.1.1"
     }
   ],
   "context": {

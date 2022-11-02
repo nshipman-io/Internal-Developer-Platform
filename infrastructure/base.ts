@@ -1,19 +1,36 @@
 import { Construct } from "constructs";
-import { TerraformStack, TerraformOutput } from "cdktf";
+import { TerraformStack, TerraformOutput, S3Backend } from "cdktf";
 import { Vpc } from './.gen/modules/vpc'
 import { SecurityGroup} from "./.gen/modules/security-group";
-import {Dynamodb} from "./.gen/modules/dynamodb";
-import {AwsProvider} from "@cdktf/provider-aws/lib/provider";
+import { Dynamodb } from "./.gen/modules/dynamodb";
+import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
+import { Ecs } from "./.gen/modules/ecs";
 
 export class BaseStack extends TerraformStack {
+    public vpc: Vpc;
+    public securityGroups: {[Key: string]: SecurityGroup} = {};
+    public dynamoTable: Dynamodb;
+    public cluster: Ecs
+
     constructor(scope: Construct, id: string) {
         super(scope, id);
 
         new AwsProvider(this, "aws", {
-            region:  "us-east-1"
+            region:  "us-east-1",
+            profile: "dev"
         });
 
-        const vpc = new Vpc(this, 'nshipmanio-dev-ue1-main', {
+        new S3Backend(this,{
+            key: "idp/baseStack.tfstate",
+            bucket: "nshipman-io-dev-terraform-state",
+            encrypt: true,
+            region: "us-east-1",
+            profile: "dev",
+            dynamodbTable: "nshipman-io-dev-terraform-state-lock"
+
+        });
+
+        this.vpc = new Vpc(this, 'nshipmanio-dev-ue1-main', {
             name: id,
             cidr: '10.1.0.0/16',
             azs: ["us-east-1a", "us-east-1b", "us-east-1c"],
@@ -28,10 +45,10 @@ export class BaseStack extends TerraformStack {
             }
         });
 
-        const securityGroups: {[Key: string]: SecurityGroup} = {};
-        securityGroups.public = new SecurityGroup(this, "public-sg", {
+
+        this.securityGroups.public = new SecurityGroup(this, "public-sg", {
             name: "public",
-            vpcId: vpc.vpcIdOutput,
+            vpcId: this.vpc.vpcIdOutput,
             ingressWithSelf: [{rule: "all-all"}],
             egressWithSelf: [{rule: "all-all"}],
             egressCidrBlocks: ["0.0.0.0/0"],
@@ -48,47 +65,57 @@ export class BaseStack extends TerraformStack {
 
         });
 
-        securityGroups.app = new SecurityGroup(this, "app-sg", {
+        this.securityGroups.app = new SecurityGroup(this, "app-sg", {
             name: "app",
-            vpcId: vpc.vpcIdOutput,
+            vpcId: this.vpc.vpcIdOutput,
             ingressWithSelf: [{ rule: "all-all" }],
             egressWithSelf: [{ rule: "all-all" }],
             egressCidrBlocks: ["0.0.0.0/0"],
             egressRules: ["all-all"],
             computedIngressWithSourceSecurityGroupId: [{
                 "rule": "all-all",
-                "source_security_group_id": securityGroups.public.securityGroupIdOutput,
+                "source_security_group_id": this.securityGroups.public.securityGroupIdOutput,
             }]
         });
 
-        securityGroups.database = new SecurityGroup(this, "database-sg", {
+        this.securityGroups.database = new SecurityGroup(this, "database-sg", {
             name: "database",
-            vpcId: vpc.vpcIdOutput,
+            vpcId: this.vpc.vpcIdOutput,
             ingressWithSelf: [{ rule: "all-all" }],
             egressWithSelf: [{ rule: "all-all" }],
             egressCidrBlocks: ["0.0.0.0/0"],
             egressRules: ["all-all"],
             computedIngressWithSourceSecurityGroupId: [{
                 "rule": "all-all",
-                "source_security_group_id": securityGroups.app.securityGroupIdOutput,
+                "source_security_group_id": this.securityGroups.app.securityGroupIdOutput,
             }]
         });
-        const dynamoTable = new Dynamodb(this, 'nshimanio-dev-ue1-dynamodb', {
+
+        this.dynamoTable = new Dynamodb(this, 'nshimanio-dev-ue1-dynamodb', {
             name: `${id}-app-table`,
-            hashKey: "id",
+            hashKey: "environment",
             attributes: [
                 {
-                    "name": "id",
+                    "name": "environment",
                     "type": "S"
                 }
             ]
         });
+
+        this.cluster = new Ecs(this, `${id}-app-cluster`, {
+            clusterName: `${id}-app-cluster`,
+        });
+
         new TerraformOutput(this, "vpc-id", {
-            value: vpc.vpcIdOutput
+            value: this.vpc.vpcIdOutput
         });
 
         new TerraformOutput(this, "dynamo-arn", {
-            value: dynamoTable.dynamodbTableArnOutput
+            value: this.dynamoTable.dynamodbTableArnOutput
+        });
+
+        new TerraformOutput(this, "ecs-cluster-name", {
+            value: this.cluster.clusterNameOutput
         });
     }
 
