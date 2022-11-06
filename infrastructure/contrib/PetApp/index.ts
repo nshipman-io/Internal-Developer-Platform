@@ -10,6 +10,8 @@ import {AlbTargetGroup} from "@cdktf/provider-aws/lib/alb-target-group";
 import {EcsService} from "@cdktf/provider-aws/lib/ecs-service";
 import {AlbListenerRule} from "@cdktf/provider-aws/lib/alb-listener-rule";
 import {Vpc} from "../../.gen/modules/vpc";
+import {IamRole} from "@cdktf/provider-aws/lib/iam-role";
+import {CloudwatchLogGroup} from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 
 export class PetAppStack extends TerraformStack {
 
@@ -105,16 +107,63 @@ export class PetAppStack extends TerraformStack {
             clusterName: "pet-app-cluster",
         });
 
+        const executionRole = new IamRole(this, "pet-app-execution-role", {
+            assumeRolePolicy: JSON.stringify({
+                Version: "2012-10-17",
+                Statement: [
+                    {
+                        Action: "sts:AssumeRole",
+                        Effect: "Allow",
+                        Sid: "",
+                        Principal: {
+                            Service: "ecs-tasks.amazonaws.com",
+                        },
+                    },
+                ],
+            }),
+
+            name: "pet-app-execution-role",
+            inlinePolicy: [
+                {
+                    name: "allow-ecr-pull",
+                    policy: JSON.stringify({
+                        Version: "2012-10-17",
+                        Statement: [
+                            {
+                                Effect: "Allow",
+                                Action: [
+                                    "ecr:*",
+                                    "logs:CreateLogStream",
+                                    "logs:PutLogEvents",
+                                ],
+                                Resource: "*",
+                            },
+                        ],
+                    }),
+                },
+            ]
+        });
+
+        const logGroup = new CloudwatchLogGroup(this, "pet-app-log-group", {
+            name: "pet-app-log-group",
+            retentionInDays: 30,
+            tags: {
+                Environment: "Development",
+                Team: "Engineering"
+            }
+        });
+
         const task = new EcsTaskDefinition(this, "pet-app-task",
             {
                 cpu: "256",
                 memory: "512",
                 requiresCompatibilities: ["FARGATE"],
                 networkMode: "awsvpc",
+                executionRoleArn: executionRole.arn,
                 containerDefinitions: JSON.stringify([
                     {
                         name: "pet-app",
-                        image: "latest",
+                        image: "678862804793.dkr.ecr.us-east-1.amazonaws.com/pet-app:latest",
                         cpu: 256,
                         memory: 512,
                         portMappings: [
@@ -123,6 +172,14 @@ export class PetAppStack extends TerraformStack {
                                 hostPort: 80,
                             },
                         ],
+                        logConfiguration: {
+                            logDriver: "awslogs",
+                            options: {
+                                "awslogs-group": logGroup.name,
+                                "awslogs-region": "us-east-1",
+                                "awslogs-stream-prefix": "pet-app-task",
+                            }
+                        }
                         }
                     ]),
                 family: "service",
