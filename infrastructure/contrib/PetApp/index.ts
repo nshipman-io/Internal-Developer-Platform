@@ -73,6 +73,7 @@ export class PetAppStack extends TerraformStack {
             name: "pet-app-lb-target-group",
             port: 80,
             protocol: "HTTP",
+            targetType: "ip",
             vpcId: baseVpc.vpcIdOutput,
             healthCheck: {
                 enabled: true,
@@ -112,7 +113,7 @@ export class PetAppStack extends TerraformStack {
                 networkMode: "awsvpc",
                 containerDefinitions: JSON.stringify([
                     {
-                        name: "pet-app-task",
+                        name: "pet-app",
                         image: "latest",
                         cpu: 256,
                         memory: 512,
@@ -134,7 +135,7 @@ export class PetAppStack extends TerraformStack {
             desiredCount: 1,
             taskDefinition: task.arn,
             networkConfiguration: {
-                subnets: ["10.1.4.0/24"],
+                subnets: Fn.tolist(baseVpc.privateSubnetsOutput),
                 assignPublicIp: false,
                 securityGroups: [securityGroup]
             },
