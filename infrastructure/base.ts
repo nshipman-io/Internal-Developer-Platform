@@ -8,9 +8,9 @@ import { Ecs } from "./.gen/modules/ecs";
 
 export class BaseStack extends TerraformStack {
     public vpc: Vpc;
-    public securityGroups: {[Key: string]: SecurityGroup} = {};
+    public securityGroups: {[key: string]: SecurityGroup}= {};;
     public dynamoTable: Dynamodb;
-    public cluster: Ecs
+    public cluster: Ecs;
 
     constructor(scope: Construct, id: string) {
         super(scope, id);
@@ -104,6 +104,10 @@ export class BaseStack extends TerraformStack {
 
         this.cluster = new Ecs(this, `${id}-app-cluster`, {
             clusterName: `${id}-app-cluster`,
+            tags: {
+                Environment: "Development",
+                Team: "DevOps"
+            }
         });
 
         new TerraformOutput(this, "vpc-id", {
@@ -117,6 +121,8 @@ export class BaseStack extends TerraformStack {
         new TerraformOutput(this, "ecs-cluster-name", {
             value: this.cluster.clusterNameOutput
         });
+
+
     }
 
 }
