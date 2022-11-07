@@ -13,6 +13,7 @@ import {Vpc} from "../../.gen/modules/vpc";
 import {IamRole} from "@cdktf/provider-aws/lib/iam-role";
 import {CloudwatchLogGroup} from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import {CodebuildProject} from "@cdktf/provider-aws/lib/codebuild-project";
+import {CodebuildWebhook} from "@cdktf/provider-aws/lib/codebuild-webhook";
 
 class PetAppCodeBuild extends Construct {
     constructor(scope: Construct, id: string) {
@@ -27,12 +28,12 @@ class PetAppCodeBuild extends Construct {
                         Effect: "Allow",
                         Sid: "",
                         Principal: {
-                            Service: "codebuild.amazonaws.com",
+                            Service: "codebuild.amazonaws.com"
                         },
                     },
                 ],
             }),
-
+            //TODO: Rollback the excess permissions.
             name: "pet-app-codebuild-role",
             inlinePolicy: [
                 {
@@ -46,6 +47,7 @@ class PetAppCodeBuild extends Construct {
                                     "ec2:*",
                                     "s3:*",
                                     "logs:*",
+                                    "ecr:*"
                                 ],
                                 Resource: "*",
                             },
@@ -55,16 +57,39 @@ class PetAppCodeBuild extends Construct {
             ]
         });
 
-        new CodebuildProject(this, "pet-app-codebuild-pipeline", {
+        const project = new CodebuildProject(this, "pet-app-codebuild-pipeline", {
            name: id,
             artifacts: {
                type: "NO_ARTIFACTS"
             },
             environment: {
                 computeType: "BUILD_GENERAL1_SMALL",
-                image: "aws/codebuild/standard:1.0",
+                image: "aws/codebuild/standard:4.0",
                 type: "LINUX_CONTAINER",
-                imagePullCredentialsType: "CODEBUILD"
+                privilegedMode: true,
+                imagePullCredentialsType: "CODEBUILD",
+
+                environmentVariable: [
+                    {
+                        name: "AWS_DEFAULT_REGION",
+                        value: "us-east-1"
+                    },
+                    {
+                        name: "AWS_ACCOUNT_ID",
+                        value: "678862804793"
+                    },
+                    {
+                        name: "IMAGE_REPO_NAME",
+                        value: "pet-app"
+                    },
+                    {
+                        "name": "IMAGE_TAG",
+                        value: "latest"
+                    }
+                ],
+
+
+
             },
             serviceRole: codebuildRole.arn,
             source: {
@@ -74,8 +99,26 @@ class PetAppCodeBuild extends Construct {
 
         });
 
-    }
+        new CodebuildWebhook(this, "pet-app-codebuild-webhook", {
+            projectName: project.name,
+            buildType: "BUILD",
+            filterGroup: [
+                {
+                    filter: [
+                        {
+                            type: "EVENT",
+                            pattern: "PUSH"
+                        },
+                        {
+                            type: "HEAD_REF",
+                            pattern: "main"
+                        }
+                    ],
+                },
+            ]
+        });
 
+    }
 }
 
 export class PetAppStack extends TerraformStack {
