@@ -8,6 +8,6 @@ const app = new App();
 
 const base =  new BaseStack(app, "nshipmanio-dev-base");
 
-new PetAppStack(app, "petapp-dev-stack", base.vpc, base.securityGroups.app.securityGroupIdOutput);
+new PetAppStack(app, "petapp-dev-stack", base.vpc, base.securityGroups.app.securityGroupIdOutput, base.securityGroups.public.securityGroupIdOutput);
 
 app.synth();

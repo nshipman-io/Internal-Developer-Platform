@@ -12,10 +12,75 @@ import {AlbListenerRule} from "@cdktf/provider-aws/lib/alb-listener-rule";
 import {Vpc} from "../../.gen/modules/vpc";
 import {IamRole} from "@cdktf/provider-aws/lib/iam-role";
 import {CloudwatchLogGroup} from "@cdktf/provider-aws/lib/cloudwatch-log-group";
+import {CodebuildProject} from "@cdktf/provider-aws/lib/codebuild-project";
+
+class PetAppCodeBuild extends Construct {
+    constructor(scope: Construct, id: string) {
+        super(scope, id);
+
+        const codebuildRole = new IamRole(this, "pet-app-codebuild-role", {
+            assumeRolePolicy: JSON.stringify({
+                Version: "2012-10-17",
+                Statement: [
+                    {
+                        Action: "sts:AssumeRole",
+                        Effect: "Allow",
+                        Sid: "",
+                        Principal: {
+                            Service: "codebuild.amazonaws.com",
+                        },
+                    },
+                ],
+            }),
+
+            name: "pet-app-codebuild-role",
+            inlinePolicy: [
+                {
+                    name: "codebuild-role",
+                    policy: JSON.stringify({
+                        Version: "2012-10-17",
+                        Statement: [
+                            {
+                                Effect: "Allow",
+                                Action: [
+                                    "ec2:*",
+                                    "s3:*",
+                                    "logs:*",
+                                ],
+                                Resource: "*",
+                            },
+                        ],
+                    }),
+                },
+            ]
+        });
+
+        new CodebuildProject(this, "pet-app-codebuild-pipeline", {
+           name: id,
+            artifacts: {
+               type: "NO_ARTIFACTS"
+            },
+            environment: {
+                computeType: "BUILD_GENERAL1_SMALL",
+                image: "aws/codebuild/standard:1.0",
+                type: "LINUX_CONTAINER",
+                imagePullCredentialsType: "CODEBUILD"
+            },
+            serviceRole: codebuildRole.arn,
+            source: {
+               type: "GITHUB",
+               location: "https://github.com/nshipman-io/pet-app.git",
+            }
+
+        });
+
+    }
+
+}
 
 export class PetAppStack extends TerraformStack {
 
-    constructor(scope: Construct, id: string, baseVpc: Vpc, securityGroup: string) {
+    constructor(scope: Construct, id: string, baseVpc: Vpc, privateSecurityGroup: string, publicSecurityGroup: string) {
         super(scope, id);
 
         new AwsProvider(this, "aws", {
@@ -23,6 +88,7 @@ export class PetAppStack extends TerraformStack {
             profile: "dev"
         });
 
+        new  PetAppCodeBuild(this, "pet-app-codebuild-pipeline");
 
         new S3Backend(this,{
             key: "petapp/PetAppStack.tfstate",
@@ -46,7 +112,7 @@ export class PetAppStack extends TerraformStack {
             name: "pet-app-lb",
             internal: false,
             loadBalancerType: "application",
-            securityGroups: [securityGroup],
+            securityGroups: [publicSecurityGroup],
             subnets: Fn.tolist(baseVpc.privateSubnetsOutput),
             tags: {
                 Environment: "Development",
@@ -194,7 +260,7 @@ export class PetAppStack extends TerraformStack {
             networkConfiguration: {
                 subnets: Fn.tolist(baseVpc.privateSubnetsOutput),
                 assignPublicIp: false,
-                securityGroups: [securityGroup]
+                securityGroups: [privateSecurityGroup]
             },
             loadBalancer: [
                 {
