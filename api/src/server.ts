@@ -1,24 +1,9 @@
-import express from 'express';
-import process from 'process';
-import cors from 'cors';
+import { app } from './app/index'
 
 const port: any = process.env.PORT ?? 3000;
 
-const app = express();
-
-const corsConfig = {
-    origin: 'https://google.com',
-    optionsSuccessStatus: 200
-}
-
-app.use(cors(corsConfig));
-
-app.get('/', (req, res) => {
-    res.send('Hello World!')
-});
-
 const server = app.listen(port, ()=> {
-    console.log(`Weberver running on port ${port}`)
+    console.log(`Webserver running on port ${port}`)
     console.log('CORS is enabled on webserver')
 });
 
