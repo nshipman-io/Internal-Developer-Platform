@@ -13,6 +13,7 @@ const environmentRouter = router;
 app.use(cors(corsConfig));
 
 app.use(express.json());
+
 app.get('/', (req, res) => {
     res.send('Hello World!')
 });

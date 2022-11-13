@@ -1,4 +1,5 @@
 import express from "express";
+import {validationResult} from "express-validator";
 
 export class EnvironmentsController {
 
@@ -11,11 +12,9 @@ export class EnvironmentsController {
 
         var envConfig = {};
         var body = req.body;
-        if (!body.environment || !body.stack) {
-            res.status(400).json(
-                {
-                    error: "Environment or stack name cannot be empty."
-                });
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array() });
         }
 
        envConfig = {
