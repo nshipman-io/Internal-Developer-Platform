@@ -20,6 +20,7 @@
     "node": ">=14.0"
   },
   "dependencies": {
+    "@aws-sdk/lib-dynamodb": "^3.209.0",
     "@cdktf/provider-aws": "^10.0.11",
     "cdktf": "^0.13.2",
     "constructs": "^10.1.145"

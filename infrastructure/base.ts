@@ -92,7 +92,7 @@ export class BaseStack extends TerraformStack {
         });
 
         this.dynamoTable = new Dynamodb(this, 'nshimanio-dev-ue1-dynamodb', {
-            name: `${id}-app-table`,
+            name: 'idp-api-table',
             hashKey: "environment",
             attributes: [
                 {
