@@ -1,15 +1,19 @@
 import express from "express";
 import {validationResult} from "express-validator";
 import {ConditionalCheckFailedException, DynamoDBClient} from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import {DeleteCommand, DynamoDBDocumentClient, UpdateCommand} from "@aws-sdk/lib-dynamodb";
 import { PutCommand, ScanCommand, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
 
 
 export class EnvironmentsController {
+    private client: DynamoDBClient;
 
     constructor() {
         this.getAllEnvironments = this.getAllEnvironments.bind(this);
         this.createEnvironment = this.createEnvironment.bind(this);
+        this.client =  new DynamoDBClient({
+            region: "us-east-1"
+        });
     }
 
 
@@ -21,12 +25,7 @@ export class EnvironmentsController {
             return res.status(400).json({errors: errors.array()});
         }
 
-        const client = new DynamoDBClient({
-            region: "us-east-1",
-        });
-
-
-        const dbClient = DynamoDBDocumentClient.from(client);
+        const dbClient = DynamoDBDocumentClient.from(this.client);
 
         const params = {
             TableName: "idp-api-table",
@@ -34,6 +33,7 @@ export class EnvironmentsController {
                 environment: body.environment,
                 stack: body.stack,
                 config: body.config,
+                status: "REGISTERED",
                 },
             ConditionExpression: "attribute_not_exists(environment)"
         };
@@ -43,6 +43,9 @@ export class EnvironmentsController {
             try {
                 console.log(`Scheduling ${body.environment} for creation.`)
                 await dbClient.send(new PutCommand(params));
+                return res.status(200).json({
+                    Status: `${body.environment} scheduled`
+                })
 
             } catch (err) {
                 if (err instanceof Error)
@@ -60,28 +63,85 @@ export class EnvironmentsController {
         };
 
         addItem();
-    }
+    };
 
     deleteEnvironment(req: express.Request, res: express.Response) {
-        var params = req.params
+        const envName = req.params.name;
 
-        res.status(202).json(
-            {
-                status: `${params.name}`
-            });
-    }
+        const dbClient = DynamoDBDocumentClient.from(this.client)
+
+        const updateParams = {
+            TableName: "idp-api-table",
+            Key: {
+              'environment': envName
+            },
+
+            UpdateExpression: 'set #s = :s',
+            ConditionExpression: 'attribute_exists(environment)',
+            ExpressionAttributeValues: {
+                ':s' : 'MARKED'
+            },
+            ExpressionAttributeNames: {
+                '#s': 'status',
+            },
+            ReturnValues: 'ALL_NEW'
+        };
+
+        const updateStatus = async () => {
+            try {
+                await dbClient.send(new UpdateCommand(updateParams));
+                res.status(200).json({
+                    Status: "Marked"
+                });
+            } catch(err) {
+                if (err instanceof Error)
+                {
+                    if(err.name === 'ConditionalCheckFailedException'){
+                        console.log(err.stack);
+                        return res.status(404).json({
+                                Error: `${envName} not found`
+                            }
+                        )
+                    }
+
+                    console.log(err.stack)
+                    return res.status(400).json({
+                        Error: "Request failed"
+                    });
+
+                }
+            }
+        };
+
+        const deleteParam = {
+            TableName: "idp-api-table",
+            Key: {
+               'environment': envName
+            }
+        }
+
+        const deleteEnv = async () => {
+            try {
+                await dbClient.send(new DeleteCommand(deleteParam))
+                console.log(`Success - ${envName} removed from database.`)
+            } catch(err) {
+                if (err instanceof Error)
+                {
+                    console.log(err.stack)
+                }
+            }
+        }
+        updateStatus();
+        deleteEnv();
+    };
 
     getAllEnvironments(req: express.Request, res: express.Response) {
-
-        const client = new DynamoDBClient({
-            region: "us-east-1",
-        });
 
         const params = {
             TableName: "idp-api-table",
         };
 
-        const dbClient = DynamoDBDocumentClient.from(client)
+        const dbClient = DynamoDBDocumentClient.from(this.client)
 
         const scanTable = async () => {
             try {
