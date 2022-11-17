@@ -15,11 +15,17 @@ import {CloudwatchLogGroup} from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import {CodebuildProject} from "@cdktf/provider-aws/lib/codebuild-project";
 import {CodebuildWebhook} from "@cdktf/provider-aws/lib/codebuild-webhook";
 
+export interface PetAppConfig {
+    baseVpc: Vpc,
+    privateSecurityGroup: string,
+    publicSecurityGroup: string
+}
+
 class PetAppCodeBuild extends Construct {
     constructor(scope: Construct, id: string) {
         super(scope, id);
 
-        const codebuildRole = new IamRole(this, "pet-app-codebuild-role", {
+        const codebuildRole = new IamRole(this, `${id}-codebuild-role`, {
             assumeRolePolicy: JSON.stringify({
                 Version: "2012-10-17",
                 Statement: [
@@ -34,10 +40,10 @@ class PetAppCodeBuild extends Construct {
                 ],
             }),
             //TODO: Rollback the excess permissions.
-            name: "pet-app-codebuild-role",
+            name: `${id}-codebuild-role`,
             inlinePolicy: [
                 {
-                    name: "codebuild-role",
+                    name: `${id}-codebuild-role`,
                     policy: JSON.stringify({
                         Version: "2012-10-17",
                         Statement: [
@@ -57,7 +63,7 @@ class PetAppCodeBuild extends Construct {
             ]
         });
 
-        const project = new CodebuildProject(this, "pet-app-codebuild-pipeline", {
+        const project = new CodebuildProject(this, `${id}-codebuild-pipeline`, {
            name: id,
             artifacts: {
                type: "NO_ARTIFACTS"
@@ -87,8 +93,6 @@ class PetAppCodeBuild extends Construct {
                         value: "latest"
                     }
                 ],
-
-
 
             },
             serviceRole: codebuildRole.arn,
@@ -123,7 +127,7 @@ class PetAppCodeBuild extends Construct {
 
 export class PetAppStack extends TerraformStack {
 
-    constructor(scope: Construct, id: string, baseVpc: Vpc, privateSecurityGroup: string, publicSecurityGroup: string) {
+    constructor(scope: Construct, id: string, config: PetAppConfig) {
         super(scope, id);
 
         new AwsProvider(this, "aws", {
@@ -134,7 +138,7 @@ export class PetAppStack extends TerraformStack {
         new  PetAppCodeBuild(this, "pet-app-codebuild-pipeline");
 
         new S3Backend(this,{
-            key: "petapp/PetAppStack.tfstate",
+            key: `petapp/${id}.tfstate`,
             bucket: "nshipman-io-dev-terraform-state",
             encrypt: true,
             region: "us-east-1",
@@ -142,21 +146,14 @@ export class PetAppStack extends TerraformStack {
             dynamodbTable: "nshipman-io-dev-terraform-state-lock"
         });
 
-        const repo = new EcrRepository(this, "pet-app", {
-            name: "pet-app",
-            imageTagMutability: "MUTABLE",
-            tags: {
-                Environment: "development",
-                Team: "Engineering"
-            }
-        });
 
-        const lb = new Alb(this, "pet-app-lb", {
-            name: "pet-app-lb",
+
+        const lb = new Alb(this, `${id}-lb`, {
+            name: `${id}-lb`,
             internal: false,
             loadBalancerType: "application",
-            securityGroups: [publicSecurityGroup],
-            subnets: Fn.tolist(baseVpc.privateSubnetsOutput),
+            securityGroups: [config.publicSecurityGroup],
+            subnets: Fn.tolist(config.baseVpc.privateSubnetsOutput),
             tags: {
                 Environment: "Development",
                 Team: "Engineering"
@@ -164,7 +161,7 @@ export class PetAppStack extends TerraformStack {
 
         });
 
-        const lbl = new AlbListener(this, "pet-app-lb-listener", {
+        const lbl = new AlbListener(this, `${id}-lb-listener`, {
             defaultAction: [
                 {
                     type: "fixed-response",
@@ -180,12 +177,12 @@ export class PetAppStack extends TerraformStack {
             protocol: "HTTP"
         });
 
-        const lbTargetGroup = new AlbTargetGroup(this, "pet-app-lb-target-group", {
-            name: "pet-app-lb-target-group",
+        const lbTargetGroup = new AlbTargetGroup(this, `${id}-lb-target-group`, {
+            name: `${id}-lb-target-group`,
             port: 80,
             protocol: "HTTP",
             targetType: "ip",
-            vpcId: baseVpc.vpcIdOutput,
+            vpcId: config.baseVpc.vpcIdOutput,
             healthCheck: {
                 enabled: true,
                 path: "/"
@@ -196,7 +193,7 @@ export class PetAppStack extends TerraformStack {
             }
         });
 
-        new AlbListenerRule(this, "pet-app-lb-listener-rule", {
+        new AlbListenerRule(this, `${id}-lb-listener-rule`, {
             listenerArn: lbl.arn,
             priority: 100,
             action: [
@@ -212,11 +209,11 @@ export class PetAppStack extends TerraformStack {
             ]
         });
 
-        const cluster = new Ecs(this, "pet-app-cluster", {
-            clusterName: "pet-app-cluster",
+        const cluster = new Ecs(this, `${id}-cluster`, {
+            clusterName: `${id}-cluster`,
         });
 
-        const executionRole = new IamRole(this, "pet-app-execution-role", {
+        const executionRole = new IamRole(this, `${id}-execution-role`, {
             assumeRolePolicy: JSON.stringify({
                 Version: "2012-10-17",
                 Statement: [
@@ -231,7 +228,7 @@ export class PetAppStack extends TerraformStack {
                 ],
             }),
 
-            name: "pet-app-execution-role",
+            name: `${id}-execution-role`,
             inlinePolicy: [
                 {
                     name: "allow-ecr-pull",
@@ -253,8 +250,8 @@ export class PetAppStack extends TerraformStack {
             ]
         });
 
-        const logGroup = new CloudwatchLogGroup(this, "pet-app-log-group", {
-            name: "pet-app-log-group",
+        const logGroup = new CloudwatchLogGroup(this, `${id}-log-group`, {
+            name: `${id}-log-group`,
             retentionInDays: 30,
             tags: {
                 Environment: "Development",
@@ -262,7 +259,7 @@ export class PetAppStack extends TerraformStack {
             }
         });
 
-        const task = new EcsTaskDefinition(this, "pet-app-task",
+        const task = new EcsTaskDefinition(this, `${id}-task`,
             {
                 cpu: "256",
                 memory: "512",
@@ -277,7 +274,7 @@ export class PetAppStack extends TerraformStack {
                         memory: 512,
                         portMappings: [
                             {
-                                containerPort: 80,
+                                containerPort: 3000,
                                 hostPort: 80,
                             },
                         ],
@@ -294,16 +291,16 @@ export class PetAppStack extends TerraformStack {
                 family: "service",
             });
 
-        new EcsService(this, "pet-app-service", {
-            name: "pet-app-service",
+        new EcsService(this, `${id}-service`, {
+            name: `${id}-service`,
             launchType: "FARGATE",
             cluster: cluster.clusterIdOutput,
             desiredCount: 1,
             taskDefinition: task.arn,
             networkConfiguration: {
-                subnets: Fn.tolist(baseVpc.privateSubnetsOutput),
+                subnets: Fn.tolist(config.baseVpc.privateSubnetsOutput),
                 assignPublicIp: false,
-                securityGroups: [privateSecurityGroup]
+                securityGroups: [config.privateSecurityGroup]
             },
             loadBalancer: [
                 {

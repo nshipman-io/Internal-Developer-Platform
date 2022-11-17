@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { router } from "../routes/environments";
+import {Github} from "../utils/github";
 
 export const app = express();
 
@@ -9,6 +10,9 @@ const corsConfig = {
 }
 
 const environmentRouter = router;
+
+const git = new Github();
+git.cloneCdkRepo();
 
 app.use(cors(corsConfig));
 

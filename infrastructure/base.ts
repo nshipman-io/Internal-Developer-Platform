@@ -5,9 +5,12 @@ import { SecurityGroup} from "./.gen/modules/security-group";
 import { Dynamodb } from "./.gen/modules/dynamodb";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Ecs } from "./.gen/modules/ecs";
+import {EcrRepository} from "@cdktf/provider-aws/lib/ecr-repository";
+import {ecrRepository} from "@cdktf/provider-aws";
 
 export class BaseStack extends TerraformStack {
     public vpc: Vpc;
+    public petAppRepo: ecrRepository;
     public securityGroups: {[key: string]: SecurityGroup}= {};;
     public dynamoTable: Dynamodb;
     public cluster: Ecs;
@@ -35,7 +38,7 @@ export class BaseStack extends TerraformStack {
             cidr: '10.1.0.0/16',
             azs: ["us-east-1a", "us-east-1b", "us-east-1c"],
             publicSubnets: ['10.1.0.0/24', "10.1.1.0/24", "10.1.2.0/24"],
-            privateSubnets: ['10.1.4.0/24', "10.1.5.0/24", "10.1.6.0/24"],
+            privateSubnets: ['10.1.4ns.0/24', "10.1.5.0/24", "10.1.6.0/24"],
             databaseSubnets: ['10.1.8.0/24', "10.1.9.0/24", "10.1.10.0/24"],
             enableNatGateway: true,
             oneNatGatewayPerAz: true,
@@ -107,6 +110,15 @@ export class BaseStack extends TerraformStack {
             tags: {
                 Environment: "Development",
                 Team: "DevOps"
+            }
+        });
+
+        this.petAppRepo = new EcrRepository(this, "pet-app", {
+            name: "pet-app",
+            imageTagMutability: "MUTABLE",
+            tags: {
+                Environment: "Development",
+                Team: "Engineering"
             }
         });
 
