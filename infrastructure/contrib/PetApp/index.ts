@@ -1,6 +1,5 @@
 import { Construct} from "constructs";
-import {S3Backend, TerraformOutput, TerraformStack, Fn} from "cdktf";
-import { EcrRepository } from "@cdktf/provider-aws/lib/ecr-repository";
+import {S3Backend, TerraformStack, Fn} from "cdktf";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Ecs } from "../../.gen/modules/ecs";
 import {EcsTaskDefinition} from "@cdktf/provider-aws/lib/ecs-task-definition";
@@ -16,13 +15,17 @@ import {CodebuildProject} from "@cdktf/provider-aws/lib/codebuild-project";
 import {CodebuildWebhook} from "@cdktf/provider-aws/lib/codebuild-webhook";
 
 export interface PetAppConfig {
-    baseVpc: Vpc,
+    gitBranch?: string
+}
+
+export interface BaseConfig {
+    vpc: Vpc,
     privateSecurityGroup: string,
-    publicSecurityGroup: string
+    publicSecurityGroup: string,
 }
 
 class PetAppCodeBuild extends Construct {
-    constructor(scope: Construct, id: string) {
+    constructor(scope: Construct, id: string, gitBranch?: string) {
         super(scope, id);
 
         const codebuildRole = new IamRole(this, `${id}-codebuild-role`, {
@@ -115,7 +118,7 @@ class PetAppCodeBuild extends Construct {
                         },
                         {
                             type: "HEAD_REF",
-                            pattern: "main"
+                            pattern: `${gitBranch}`
                         }
                     ],
                 },
@@ -127,7 +130,7 @@ class PetAppCodeBuild extends Construct {
 
 export class PetAppStack extends TerraformStack {
 
-    constructor(scope: Construct, id: string, config: PetAppConfig) {
+    constructor(scope: Construct, id: string, baseConfig: BaseConfig, config: PetAppConfig) {
         super(scope, id);
 
         new AwsProvider(this, "aws", {
@@ -135,7 +138,13 @@ export class PetAppStack extends TerraformStack {
             profile: "dev"
         });
 
-        new  PetAppCodeBuild(this, "pet-app-codebuild-pipeline");
+        if (!config.gitBranch)
+        {
+            console.log("No branch declared: Using main branch.")
+            config.gitBranch = "main"
+        }
+
+        new  PetAppCodeBuild(this, `${id}-codebuild-pipeline`, config.gitBranch);
 
         new S3Backend(this,{
             key: `petapp/${id}.tfstate`,
@@ -152,8 +161,8 @@ export class PetAppStack extends TerraformStack {
             name: `${id}-lb`,
             internal: false,
             loadBalancerType: "application",
-            securityGroups: [config.publicSecurityGroup],
-            subnets: Fn.tolist(config.baseVpc.privateSubnetsOutput),
+            securityGroups: [baseConfig.publicSecurityGroup],
+            subnets: Fn.tolist(baseConfig.vpc.privateSubnetsOutput),
             tags: {
                 Environment: "Development",
                 Team: "Engineering"
@@ -182,7 +191,7 @@ export class PetAppStack extends TerraformStack {
             port: 80,
             protocol: "HTTP",
             targetType: "ip",
-            vpcId: config.baseVpc.vpcIdOutput,
+            vpcId: baseConfig.vpc.vpcIdOutput,
             healthCheck: {
                 enabled: true,
                 path: "/"
@@ -274,7 +283,7 @@ export class PetAppStack extends TerraformStack {
                         memory: 512,
                         portMappings: [
                             {
-                                containerPort: 3000,
+                                containerPort: 80,
                                 hostPort: 80,
                             },
                         ],
@@ -298,9 +307,9 @@ export class PetAppStack extends TerraformStack {
             desiredCount: 1,
             taskDefinition: task.arn,
             networkConfiguration: {
-                subnets: Fn.tolist(config.baseVpc.privateSubnetsOutput),
+                subnets: Fn.tolist(baseConfig.vpc.privateSubnetsOutput),
                 assignPublicIp: false,
-                securityGroups: [config.privateSecurityGroup]
+                securityGroups: [baseConfig.privateSecurityGroup]
             },
             loadBalancer: [
                 {
@@ -311,9 +320,6 @@ export class PetAppStack extends TerraformStack {
             ]
         });
 
-        new TerraformOutput(this, "ecr-repo-arn", {
-            value: repo.arn
-        });
 
     }
 }

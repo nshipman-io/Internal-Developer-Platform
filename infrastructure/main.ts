@@ -3,11 +3,15 @@
 import { App } from "cdktf";
 import { BaseStack } from "./base"
 import { PetAppStack } from "./contrib/PetApp/Index";
+import {getBaseConfig} from "./helper";
 
 const app = new App();
 
 const base =  new BaseStack(app, "nshipmanio-dev-base");
 
-new PetAppStack(app, "petapp-dev-stack", base.vpc, base.securityGroups.app.securityGroupIdOutput, base.securityGroups.public.securityGroupIdOutput);
+new PetAppStack(app, "petapp-dev-stack", getBaseConfig(base), {
+    gitBranch: "main"
+});
+
 
 app.synth();

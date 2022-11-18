@@ -4,7 +4,7 @@ import {ConditionalCheckFailedException, DynamoDBClient} from "@aws-sdk/client-d
 import {DeleteCommand, DynamoDBDocumentClient, UpdateCommand} from "@aws-sdk/lib-dynamodb";
 import { PutCommand, ScanCommand, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
 import {Github} from "../utils/github";
-import { readCDKFile } from "../utils/helper";
+import {generateStackConfig, readCDKFile} from "../utils/helper";
 
 export class EnvironmentsController {
     private client: DynamoDBClient;
@@ -21,7 +21,7 @@ export class EnvironmentsController {
 
     createEnvironment(req: express.Request, res: express.Response) {
 
-        var body = req.body;
+        const body = req.body;
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({errors: errors.array()});
@@ -29,6 +29,7 @@ export class EnvironmentsController {
 
         const dbClient = DynamoDBDocumentClient.from(this.client);
 
+        console.log(body.config)
         const params = {
             TableName: "idp-api-table",
             Item: {
@@ -40,6 +41,11 @@ export class EnvironmentsController {
             ConditionExpression: "attribute_not_exists(environment)"
         };
 
+        const petStackConfig = {
+            environment: body.environment,
+            stack: body.stack,
+            config: body.config,
+        }
 
         const addItem = async () => {
             try {
@@ -63,8 +69,11 @@ export class EnvironmentsController {
                 }
             }
         };
-
         addItem();
+
+        this.github.resetCdkRepo();
+
+        generateStackConfig(petStackConfig);
     };
 
     deleteEnvironment(req: express.Request, res: express.Response) {
