@@ -2,8 +2,9 @@ import {SimpleGit, simpleGit, SimpleGitOptions} from "simple-git";
 import {SimpleGitApi} from "simple-git/dist/src/lib/simple-git-api";
 
 export class Github {
-    private options: Partial<SimpleGitOptions>
+    public options: Partial<SimpleGitOptions>
     public git: SimpleGit
+
 
     constructor() {
         this.options = {
@@ -11,7 +12,6 @@ export class Github {
             binary: 'git',
             maxConcurrentProcesses: 6,
             trimmed: false,
-
         };
 
         this.git = simpleGit(this.options);
@@ -31,10 +31,10 @@ export class Github {
 
     }
 
-    async resetCdkRepo() {
+    resetCdkRepo() {
         console.log("Resetting CDKTF Repo to HEAD");
         try {
-            await this.git.reset()
+            this.git.reset()
             console.log("Git reset completed...")
         } catch (err) {
             if (err instanceof Error) {
@@ -42,5 +42,24 @@ export class Github {
                 return;
             }
         }
+    }
+
+    publishChanges(): boolean {
+        var committed = false;
+        var CDK_MAIN_TS_DIR = process.env.CDK_MAIN_TS_DIR;
+
+        console.log("Committing CDKTF changes to Repo")
+        try {
+            this.git.add(`${CDK_MAIN_TS_DIR}/main.ts`)
+            this.git.commit("Updating CDKTF main.ts");
+            this.git.push();
+            committed = true;
+        } catch (err) {
+            if (err instanceof Error) {
+                console.log(err.message);
+                committed = false;
+            }
+        }
+        return committed;
     }
 }

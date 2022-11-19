@@ -29,7 +29,6 @@ export class EnvironmentsController {
 
         const dbClient = DynamoDBDocumentClient.from(this.client);
 
-        console.log(body.config)
         const params = {
             TableName: "idp-api-table",
             Item: {
@@ -51,29 +50,81 @@ export class EnvironmentsController {
             try {
                 console.log(`Scheduling ${body.environment} for creation.`)
                 await dbClient.send(new PutCommand(params));
-                return res.status(200).json({
+                res.status(200).json({
                     Status: `${body.environment} scheduled`
-                })
+                });
 
             } catch (err) {
                 if (err instanceof Error)
                 {
                     if (err.name === 'ConditionalCheckFailedException') {
                         console.log(`${body.environment} already exists`)
-                        return res.status(404).json(
+                        res.status(404).json(
                             {
                                 Error: `${body.environment} already exists`
-                            }
-                        )
+                            });
+                    }
+
+                    else {
+                        console.log(err.message)
+                        res.status(500).json({
+                            Error: err.message
+                        });
                     }
                 }
             }
         };
+
+        const updateParams = {
+            TableName: "idp-api-table",
+            Key: {
+                'environment': body.environment
+            },
+
+            UpdateExpression: 'set #s = :s',
+            ConditionExpression: 'attribute_exists(environment)',
+            ExpressionAttributeValues: {
+                ':s' : 'COMMITTED'
+            },
+            ExpressionAttributeNames: {
+                '#s': 'status',
+            },
+            ReturnValues: 'ALL_NEW'
+        };
+
+
+        const updateStatus = async () => {
+            try {
+                await dbClient.send(new UpdateCommand(updateParams));
+                console.log(`${body.environment} committed`)
+            } catch(err) {
+                if (err instanceof Error)
+                {
+                    if(err.name === 'ConditionalCheckFailedException'){
+                        console.log(`${body.environment} not found`);
+                        return;
+                    }
+                    console.log(err.stack)
+                    return;
+                }
+            }
+        };
+
         addItem();
 
         this.github.resetCdkRepo();
+        if(!generateStackConfig(petStackConfig)){
+            console.log("No changes to commit. Skipping...")
+            return;
+        }
 
-        generateStackConfig(petStackConfig);
+        if(!this.github.publishChanges())
+        {
+            console.log("Commit failed.");
+            return;
+        }
+
+        updateStatus();
     };
 
     deleteEnvironment(req: express.Request, res: express.Response) {
@@ -149,7 +200,6 @@ export class EnvironmentsController {
             }
         }
         updateStatus();
-
         deleteEnv();
     };
 
