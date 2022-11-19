@@ -68,3 +68,29 @@ export function writeStackDeclaration(declaration: string): boolean {
 
     return updated;
 }
+
+export function deleteStackDeclaration(name: string): boolean {
+    console.log(`Removing ${name} declaration from file...`)
+    var updated = false;
+    var mainFileArr = readCDKFile();
+    if (mainFileArr instanceof Array) {
+        for (let i = 0; i < mainFileArr.length; i++) {
+            if (mainFileArr[i].includes(name)) {
+                console.log(`${name} declaration found...\nRemoving...`);
+                mainFileArr[i] = "";
+                var data = mainFileArr.join("\n");
+                try {
+                    fs.writeFileSync(`${CDK_MAIN_TS_DIR}/main.ts`, data);
+                    updated = true;
+                } catch (err) {
+                    if (err instanceof Error) {
+                        console.log(err.stack);
+                        return updated;
+                    }
+                }
+
+            }
+        }
+    }
+    return updated;
+}

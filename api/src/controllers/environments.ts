@@ -4,7 +4,7 @@ import {ConditionalCheckFailedException, DynamoDBClient} from "@aws-sdk/client-d
 import {DeleteCommand, DynamoDBDocumentClient, UpdateCommand} from "@aws-sdk/lib-dynamodb";
 import { PutCommand, ScanCommand, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
 import {Github} from "../utils/github";
-import {generateStackConfig, readCDKFile} from "../utils/helper";
+import {deleteStackDeclaration, generateStackConfig, readCDKFile} from "../utils/helper";
 
 export class EnvironmentsController {
     private client: DynamoDBClient;
@@ -112,18 +112,19 @@ export class EnvironmentsController {
 
         addItem();
 
-        this.github.resetCdkRepo();
+        //this.github.resetCdkRepo();
         if(!generateStackConfig(petStackConfig)){
             console.log("No changes to commit. Skipping...")
             return;
         }
 
+        /*
         if(!this.github.publishChanges())
         {
             console.log("Commit failed.");
             return;
         }
-
+        */
         updateStatus();
     };
 
@@ -173,8 +174,6 @@ export class EnvironmentsController {
             }
         };
 
-        this.github.resetCdkRepo();
-
         const deleteParam = {
             TableName: "idp-api-table",
             Key: {
@@ -199,7 +198,12 @@ export class EnvironmentsController {
                 }
             }
         }
-        updateStatus();
+
+        //this.github.resetCdkRepo();
+        updateStatus()
+        if(!deleteStackDeclaration(envName)){
+            console.log(`${envName} was not found`);
+        }
         deleteEnv();
     };
 
