@@ -5,10 +5,12 @@ import { SecurityGroup} from "./.gen/modules/security-group";
 import { Dynamodb } from "./.gen/modules/dynamodb";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Ecs } from "./.gen/modules/ecs";
+import { EcrRepository } from "@cdktf/provider-aws/lib/ecr-repository";
 
 export class BaseStack extends TerraformStack {
     public vpc: Vpc;
-    public securityGroups: {[key: string]: SecurityGroup}= {};;
+    public petAppRepo: EcrRepository;
+    public securityGroups: {[key: string]: SecurityGroup}= {};
     public dynamoTable: Dynamodb;
     public cluster: Ecs;
 
@@ -110,6 +112,15 @@ export class BaseStack extends TerraformStack {
             }
         });
 
+        this.petAppRepo = new EcrRepository(this, "pet-app", {
+            name: "pet-app",
+            imageTagMutability: "MUTABLE",
+            tags: {
+                Environment: "Development",
+                Team: "Engineering"
+            }
+        });
+
         new TerraformOutput(this, "vpc-id", {
             value: this.vpc.vpcIdOutput
         });
@@ -120,6 +131,10 @@ export class BaseStack extends TerraformStack {
 
         new TerraformOutput(this, "ecs-cluster-name", {
             value: this.cluster.clusterNameOutput
+        });
+
+        new TerraformOutput(this, "pet-app-ecr-repo-arn", {
+            value: this.petAppRepo.arn
         });
 
 
