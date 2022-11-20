@@ -14,7 +14,7 @@ const environmentRouter = router;
 const git = new Github();
 
 git.cloneCdkRepo();
-git.options.baseDir = process.env.CDK_MAIN_TS_DIR
+
 
 
 app.use(cors(corsConfig));
