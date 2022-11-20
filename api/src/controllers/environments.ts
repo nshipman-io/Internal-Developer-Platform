@@ -204,6 +204,7 @@ export class EnvironmentsController {
         if(!deleteStackDeclaration(envName)){
             console.log(`${envName} was not found`);
         }
+        this.github.publishChanges();
         deleteEnv();
     };
 

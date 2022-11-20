@@ -50,9 +50,9 @@ export class Github {
 
         console.log("Committing CDKTF changes to Repo")
         try {
-            this.git.add(`${CDK_MAIN_TS_DIR}/main.ts`)
+            this.git.add(".")
             this.git.commit("Updating CDKTF main.ts");
-            this.git.push();
+            //this.git.push();
             committed = true;
         } catch (err) {
             if (err instanceof Error) {
