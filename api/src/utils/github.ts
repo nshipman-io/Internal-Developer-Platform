@@ -1,5 +1,4 @@
-import {SimpleGit, simpleGit, SimpleGitOptions} from "simple-git";
-import {SimpleGitApi} from "simple-git/dist/src/lib/simple-git-api";
+import {ResetMode, SimpleGit, simpleGit, SimpleGitOptions} from "simple-git";
 
 export class Github {
     public options: Partial<SimpleGitOptions>
@@ -32,9 +31,9 @@ export class Github {
     }
 
     resetCdkRepo() {
-        console.log("Resetting CDKTF Repo to HEAD");
+        console.log("Resetting cdktf repo to HEAD");
         try {
-            this.git.reset()
+            this.git.reset(ResetMode.HARD, ["origin/main"] )
             console.log("Git reset completed...")
         } catch (err) {
             if (err instanceof Error) {
@@ -47,12 +46,15 @@ export class Github {
     publishChanges(): boolean {
         var committed = false;
         var CDK_MAIN_TS_DIR = process.env.CDK_MAIN_TS_DIR;
+        //const debug = require('debug');
+        //debug.enable('simple-git,simple-git:*');
 
-        console.log("Committing CDKTF changes to Repo")
+        console.log("Committing cdktf main.ts changes to repo...")
         try {
-            this.git.add(".")
+            this.git.add(`${CDK_MAIN_TS_DIR}/main.ts`)
+            console.log(`${CDK_MAIN_TS_DIR}/main.ts`)
             this.git.commit("Updating CDKTF main.ts");
-            //this.git.push();
+            this.git.push();
             committed = true;
         } catch (err) {
             if (err instanceof Error) {

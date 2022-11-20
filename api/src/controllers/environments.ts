@@ -16,7 +16,9 @@ export class EnvironmentsController {
         this.client =  new DynamoDBClient({
             region: "us-east-1"
         });
+
         this.github = new Github();
+        this.github.options.baseDir = process.env.CDK_MAIN_TS_DIR;
     }
 
     createEnvironment(req: express.Request, res: express.Response) {
@@ -112,19 +114,17 @@ export class EnvironmentsController {
 
         addItem();
 
-        //this.github.resetCdkRepo();
+        this.github.resetCdkRepo();
         if(!generateStackConfig(petStackConfig)){
             console.log("No changes to commit. Skipping...")
             return;
         }
 
-        /*
         if(!this.github.publishChanges())
         {
             console.log("Commit failed.");
             return;
         }
-        */
         updateStatus();
     };
 
@@ -199,12 +199,13 @@ export class EnvironmentsController {
             }
         }
 
-        //this.github.resetCdkRepo();
-        updateStatus()
+        this.github.resetCdkRepo();
         if(!deleteStackDeclaration(envName)){
             console.log(`${envName} was not found`);
+            return;
         }
         this.github.publishChanges();
+        updateStatus()
         deleteEnv();
     };
 
