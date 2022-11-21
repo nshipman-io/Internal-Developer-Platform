@@ -222,11 +222,11 @@ export class EnvironmentsController {
             }
         }
 
-        this.github.resetCdkRepo();
+        //this.github.resetCdkRepo();
         if(!deleteStackDeclaration(envName)){
             console.log(`${envName} was not found`);
-            return;
         }
+
         this.github.publishChanges();
         updateStatus()
         deleteEnv();
