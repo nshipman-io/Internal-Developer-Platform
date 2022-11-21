@@ -5,6 +5,7 @@ import {DeleteCommand, DynamoDBDocumentClient, UpdateCommand} from "@aws-sdk/lib
 import { PutCommand, ScanCommand, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
 import {Github} from "../utils/github";
 import {deleteStackDeclaration, generateStackConfig, readCDKFile} from "../utils/helper";
+import {applyChanges} from "../utils/cdktf";
 
 export class EnvironmentsController {
     private client: DynamoDBClient;
@@ -94,9 +95,30 @@ export class EnvironmentsController {
             ReturnValues: 'ALL_NEW'
         };
 
+        const updateParamsFailed = {
+            TableName: "idp-api-table",
+            Key: {
+                'environment': body.environment
+            },
 
-        const updateStatus = async () => {
+            UpdateExpression: 'set #s = :s',
+            ConditionExpression: 'attribute_exists(environment)',
+            ExpressionAttributeValues: {
+                ':s' : 'FAILED'
+            },
+            ExpressionAttributeNames: {
+                '#s': 'status',
+            },
+            ReturnValues: 'ALL_NEW'
+        };
+
+
+        const updateStatus = async (err: Number | undefined) => {
             try {
+                if ( err != 0) {
+                    await dbClient.send(new UpdateCommand(updateParamsFailed));
+                    console.log(`ERROR: ${body.environment} failed to deploy`)
+                }
                 await dbClient.send(new UpdateCommand(updateParams));
                 console.log(`${body.environment} committed`)
             } catch(err) {
@@ -114,7 +136,7 @@ export class EnvironmentsController {
 
         addItem();
 
-        this.github.resetCdkRepo();
+        //this.github.resetCdkRepo();
         if(!generateStackConfig(petStackConfig)){
             console.log("No changes to commit. Skipping...")
             return;
@@ -125,7 +147,8 @@ export class EnvironmentsController {
             console.log("Commit failed.");
             return;
         }
-        updateStatus();
+        const err = applyChanges(body.environment)
+        updateStatus(err);
     };
 
     deleteEnvironment(req: express.Request, res: express.Response) {
