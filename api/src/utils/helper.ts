@@ -44,7 +44,7 @@ export function writeStackDeclaration(declaration: string): boolean {
     try {
         if(Array.isArray(mainFileArr)) {
             console.log("appending changes")
-            var lineNumber = mainFileArr.length-3;
+            var lineNumber = mainFileArr.length-2;
             mainFileArr.splice(lineNumber, 0, "\n");
             mainFileArr.splice(lineNumber, 0, declaration);
             var data = mainFileArr.join("\n");

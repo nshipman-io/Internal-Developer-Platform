@@ -23,7 +23,8 @@
     "@aws-sdk/lib-dynamodb": "^3.209.0",
     "@cdktf/provider-aws": "^10.0.11",
     "cdktf": "^0.13.2",
-    "constructs": "^10.1.145"
+    "constructs": "^10.1.145",
+    "package.json": "^0.0.0"
   },
   "devDependencies": {
     "@types/jest": "^29.2.0",

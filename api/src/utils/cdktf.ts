@@ -1,23 +1,53 @@
-import {spawn} from "child_process";
+import {spawn, spawnSync} from "child_process";
 
-export function applyChanges(name: string) {
+//TODO: Can likely consolidate these tasks to a single function
+
+export function deployStack(name: string): [boolean, string] {
+
+    var deployed = false;
+    var notes = "";
     const CDK_MAIN_TS_DIR = process.env.CDK_MAIN_TS_DIR || './';
 
     process.chdir(CDK_MAIN_TS_DIR);
-    const cdktfApply = spawn('cdktf',['apply', `${name}`]);
-    var exitCode;
-    cdktfApply.stdout.on('data', (data) => {
-        console.log(`stdout: ${data}`)
+    const cdktfApply = spawnSync('cdktf',['deploy', `${name}`, '--ignore-missing-stack-dependencies', '--auto-approve'], {
+        stdio: 'pipe',
+        encoding: 'utf-8',
     });
 
-    cdktfApply.stderr.on('data',(data) => {
-        console.log(`stderr: ${data}`);
+    if(cdktfApply.status === 0) {
+        deployed = true;
+        console.log(`stdout:\n${cdktfApply.stdout}`)
+        notes = cdktfApply.stdout;
+    }
+    else {
+        console.log(`stderr:\n${cdktfApply.stderr}`)
+        notes = cdktfApply.stderr;
+    }
+
+    return [deployed, notes];
+}
+
+export function destroyStack(name: string): [boolean, string]  {
+    var destroyed = false;
+    var notes = "";
+
+    const CDK_MAIN_TS_DIR = process.env.CDK_MAIN_TS_DIR || './';
+
+    process.chdir(CDK_MAIN_TS_DIR);
+
+    const cdktfDestroy = spawnSync('cdktf',['destroy', `${name}`, '--ignore-missing-stack-dependencies', '--auto-approve'],{
+        stdio: 'pipe',
+        encoding: 'utf-8'
     });
 
-    cdktfApply.on('close', (code) => {
-        console.log(`process closed with error code: ${code}`)
-        exitCode = code
-    })
+    if (cdktfDestroy.status === 0) {
+        destroyed = true;
+        console.log(`stdout:\n${cdktfDestroy.stdout}`);
+    } else {
+        console.log(`stderr:\n${cdktfDestroy.stderr}`);
+        notes = cdktfDestroy.stderr;
+    }
 
-    return exitCode;
+    return [destroyed, notes];
+
 }

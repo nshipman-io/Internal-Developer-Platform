@@ -5,7 +5,7 @@ import {DeleteCommand, DynamoDBDocumentClient, UpdateCommand} from "@aws-sdk/lib
 import { PutCommand, ScanCommand, ScanCommandInput } from "@aws-sdk/lib-dynamodb";
 import {Github} from "../utils/github";
 import {deleteStackDeclaration, generateStackConfig, readCDKFile} from "../utils/helper";
-import {applyChanges} from "../utils/cdktf";
+import {deployStack, destroyStack} from "../utils/cdktf";
 
 export class EnvironmentsController {
     private client: DynamoDBClient;
@@ -22,7 +22,8 @@ export class EnvironmentsController {
         this.github.options.baseDir = process.env.CDK_MAIN_TS_DIR;
     }
 
-    createEnvironment(req: express.Request, res: express.Response) {
+    //TODO Add a helper function that builds update dynamodb params
+    async createEnvironment(req: express.Request, res: express.Response) {
 
         const body = req.body;
         const errors = validationResult(req);
@@ -78,47 +79,54 @@ export class EnvironmentsController {
             }
         };
 
-        const updateParams = {
-            TableName: "idp-api-table",
-            Key: {
-                'environment': body.environment
-            },
-
-            UpdateExpression: 'set #s = :s',
-            ConditionExpression: 'attribute_exists(environment)',
-            ExpressionAttributeValues: {
-                ':s' : 'COMMITTED'
-            },
-            ExpressionAttributeNames: {
-                '#s': 'status',
-            },
-            ReturnValues: 'ALL_NEW'
-        };
-
-        const updateParamsFailed = {
-            TableName: "idp-api-table",
-            Key: {
-                'environment': body.environment
-            },
-
-            UpdateExpression: 'set #s = :s',
-            ConditionExpression: 'attribute_exists(environment)',
-            ExpressionAttributeValues: {
-                ':s' : 'FAILED'
-            },
-            ExpressionAttributeNames: {
-                '#s': 'status',
-            },
-            ReturnValues: 'ALL_NEW'
-        };
-
-
-        const updateStatus = async (err: Number | undefined) => {
+        const updateStatus = async (deployed: boolean, deployNotes: string) => {
+            console.log(deployed)
             try {
-                if ( err != 0) {
+                if (!deployed) {
+
+                    var updateParamsFailed = {
+                        TableName: "idp-api-table",
+                        Key: {
+                            'environment': body.environment
+                        },
+
+                        UpdateExpression: 'set #s = :s, #n = :n',
+                        ConditionExpression: 'attribute_exists(environment)',
+                        ExpressionAttributeValues: {
+                            ':s' : 'FAILED',
+                            ':n' : deployNotes,
+                        },
+                        ExpressionAttributeNames: {
+                            '#s': 'status',
+                            '#n': 'notes',
+                        },
+                        ReturnValues: 'ALL_NEW'
+                    };
+
                     await dbClient.send(new UpdateCommand(updateParamsFailed));
                     console.log(`ERROR: ${body.environment} failed to deploy`)
+                    return;
                 }
+
+                var updateParams = {
+                    TableName: "idp-api-table",
+                    Key: {
+                        'environment': body.environment
+                    },
+
+                    UpdateExpression: 'set #s = :s, #n = :n',
+                    ConditionExpression: 'attribute_exists(environment)',
+                    ExpressionAttributeValues: {
+                        ':s' : 'COMMITTED',
+                        ':n' : deployNotes
+                    },
+                    ExpressionAttributeNames: {
+                        '#s': 'status',
+                        '#n': 'notes',
+                    },
+                    ReturnValues: 'ALL_NEW'
+                };
+
                 await dbClient.send(new UpdateCommand(updateParams));
                 console.log(`${body.environment} committed`)
             } catch(err) {
@@ -134,7 +142,7 @@ export class EnvironmentsController {
             }
         };
 
-        addItem();
+        await addItem();
 
         //this.github.resetCdkRepo();
         if(!generateStackConfig(petStackConfig)){
@@ -144,14 +152,20 @@ export class EnvironmentsController {
 
         if(!this.github.publishChanges())
         {
-            console.log("Commit failed.");
+            console.log("createEnvironment: Commit failed.");
             return;
         }
-        const err = applyChanges(body.environment)
-        updateStatus(err);
+
+        const deployResults = deployStack(body.environment);
+
+        const deployed = deployResults[0];
+        const deployNotes = deployResults[1]
+
+
+        updateStatus(deployed, deployNotes);
     };
 
-    deleteEnvironment(req: express.Request, res: express.Response) {
+    async deleteEnvironment(req: express.Request, res: express.Response) {
         const envName = req.params.name;
 
         const dbClient = DynamoDBDocumentClient.from(this.client)
@@ -206,30 +220,77 @@ export class EnvironmentsController {
 
         }
 
-        const deleteEnv = async () => {
-            try {
-                await dbClient.send(new DeleteCommand(deleteParam))
-                console.log(`Success - ${envName} removed from database.`)
-            } catch(err) {
-                if (err instanceof Error)
-                {
-                    if(err.name === 'ConditionalCheckFailedException'){
-                        console.log(`${envName} was not found. Skipping...`)
+        const deleteEnv = async (destroyed: boolean, destroyNotes: string) => {
+
+            if(!destroyed) {
+                var updateParams = {
+                    TableName: "idp-api-table",
+                    Key: {
+                        'environment': envName
+                    },
+
+                    UpdateExpression: 'set #s = :s, #n = :n',
+                    ConditionExpression: 'attribute_exists(environment)',
+                    ExpressionAttributeValues: {
+                        ':s': 'DESTROYFAILED',
+                        ':n': destroyNotes
+                    },
+                    ExpressionAttributeNames: {
+                        '#s': 'status',
+                        '#n': 'notes',
+                    },
+                    ReturnValues: 'ALL_NEW'
+                };
+                try {
+                    await dbClient.send(new UpdateCommand(updateParams));
+                    console.log(`Error - ${envName} was not destroyed.`)
+                } catch (err) {
+                    if (err instanceof Error)
+                    {
+                        console.log(err.stack)
                         return;
                     }
+                }
+            }   else {
+                try {
+                    await dbClient.send(new DeleteCommand(deleteParam))
+                    console.log(`Success - ${envName} removed from database.`)
+                } catch(err) {
+                    if (err instanceof Error)
+                    {
+                        if(err.name === 'ConditionalCheckFailedException'){
+                            console.log(`${envName} was not found. Skipping...`)
+                            return;
+                        }
                     console.log(err.stack)
+                }
                 }
             }
         }
 
         //this.github.resetCdkRepo();
-        if(!deleteStackDeclaration(envName)){
-            console.log(`${envName} was not found`);
+
+        await updateStatus()
+
+        const destroyResults = destroyStack(envName);
+
+        const destroyed = destroyResults[0];
+        const destroyNotes = destroyResults[1];
+
+        await deleteEnv(destroyed, destroyNotes);
+
+        if(destroyed)
+        {
+            if(!deleteStackDeclaration(envName)){
+                console.log(`${envName} was not found`);
+            }
+
+            if(!this.github.publishChanges()) {
+                console.log("deleteEnvironment: Commit failed")
+                return;
+            }
         }
 
-        this.github.publishChanges();
-        updateStatus()
-        deleteEnv();
     };
 
     getAllEnvironments(req: express.Request, res: express.Response) {
@@ -259,6 +320,5 @@ export class EnvironmentsController {
             }
         scanTable();
         };
-
 
 }

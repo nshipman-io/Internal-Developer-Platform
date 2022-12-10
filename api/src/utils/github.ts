@@ -16,6 +16,12 @@ export class Github {
         this.git = simpleGit(this.options);
     }
 
+    /*
+        TODO: Automate repository initialization
+            - npm install in the infrastructure directory
+            - cdktf get in the infrastructure directory
+     */
+
     async cloneCdkRepo() {
         console.log("Cloning CDKTF Infrastructure directory");
         try {
