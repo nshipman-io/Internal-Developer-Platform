@@ -69,7 +69,7 @@ export function writeStackDeclaration(declaration: string): boolean {
     return updated;
 }
 
-export function deleteStackDeclaration(name: string): boolean {
+export async function deleteStackDeclaration(name: string): Promise<boolean> {
     console.log(`Removing ${name} declaration from file...`)
     var updated = false;
     var mainFileArr = readCDKFile();

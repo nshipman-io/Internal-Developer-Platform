@@ -326,21 +326,17 @@ export class EnvironmentsController {
 
         await deleteEnv(destroyed, destroyNotes);
 
-        if(destroyed)
-        {
-            if(!deleteStackDeclaration(envName)){
-                console.log(`${envName} was not found`);
-            }
-
-            if(await this.github.publishChanges() === false) {
+        if( await deleteStackDeclaration(envName)){
+            console.log(`${envName} stack declaration removed.\n`);
+            if (await this.github.publishChanges() === false) {
                 console.log("deleteEnvironment: Commit failed")
                 return;
             }
         }
-
+       return;
     };
 
-    getAllEnvironments(req: express.Request, res: express.Response) {
+    async getAllEnvironments(req: express.Request, res: express.Response) {
 
         const params = {
             TableName: "idp-api-table",
@@ -365,7 +361,7 @@ export class EnvironmentsController {
                     }
                 }
             }
-        scanTable();
+        await scanTable();
         };
 
 }
