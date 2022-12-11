@@ -79,6 +79,44 @@ export class EnvironmentsController {
             }
         };
 
+        const updateCommit = async () => {
+            try {
+                var updateParams = {
+                    TableName: "idp-api-table",
+                    Key: {
+                        'environment': body.environment
+                    },
+
+                    UpdateExpression: 'set #s = :s',
+                    ConditionExpression: 'attribute_exists(environment)',
+                    ExpressionAttributeValues: {
+                        ':s' : 'COMMITTED',
+                    },
+                    ExpressionAttributeNames: {
+                        '#s': 'status',
+                        '#n': 'notes',
+                    },
+                    ReturnValues: 'ALL_NEW'
+                };
+                await dbClient.send(new UpdateCommand(updateParams));
+                console.log(`${body.environment} committed to git`)
+            } catch (err) {
+                if (err instanceof Error)
+                {
+                    if(err.name === 'ConditionalCheckFailedException'){
+                        console.log(`${body.environment} not found`);
+                        return;
+                    }
+                    else {
+                        console.log(err.message)
+                        res.status(500).json({
+                            Error: err.message
+                        });
+                    }
+                }
+            }
+        };
+
         const updateStatus = async (deployed: boolean, deployNotes: string) => {
             console.log(deployed)
             try {
@@ -117,7 +155,7 @@ export class EnvironmentsController {
                     UpdateExpression: 'set #s = :s, #n = :n',
                     ConditionExpression: 'attribute_exists(environment)',
                     ExpressionAttributeValues: {
-                        ':s' : 'COMMITTED',
+                        ':s' : 'DEPLOYED',
                         ':n' : deployNotes
                     },
                     ExpressionAttributeNames: {
@@ -128,7 +166,7 @@ export class EnvironmentsController {
                 };
 
                 await dbClient.send(new UpdateCommand(updateParams));
-                console.log(`${body.environment} committed`)
+                console.log(`${body.environment} deployed`)
             } catch(err) {
                 if (err instanceof Error)
                 {
@@ -144,17 +182,19 @@ export class EnvironmentsController {
 
         await addItem();
 
-        //this.github.resetCdkRepo();
+        await this.github.resetCdkRepo();
         if(!generateStackConfig(petStackConfig)){
             console.log("No changes to commit. Skipping...")
             return;
         }
 
-        if(!this.github.publishChanges())
+        if(await this.github.publishChanges() === false)
         {
             console.log("createEnvironment: Commit failed.");
             return;
         }
+
+        await updateCommit();
 
         const deployResults = deployStack(body.environment);
 
@@ -268,7 +308,7 @@ export class EnvironmentsController {
             }
         }
 
-        //this.github.resetCdkRepo();
+        await this.github.resetCdkRepo();
 
         await updateStatus()
 
@@ -285,7 +325,7 @@ export class EnvironmentsController {
                 console.log(`${envName} was not found`);
             }
 
-            if(!this.github.publishChanges()) {
+            if(await this.github.publishChanges() === false) {
                 console.log("deleteEnvironment: Commit failed")
                 return;
             }

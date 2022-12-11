@@ -40,10 +40,19 @@ export class Github {
 
     }
 
-    resetCdkRepo() {
+    async resetCdkRepo() {
         console.log("Resetting cdktf repo to HEAD");
+        console.log("Ensuring git working directory is CDK working directory for local development")
+
+        this.options = {
+            baseDir: process.env.CDK_MAIN_TS_DIR,
+            binary: 'git',
+            maxConcurrentProcesses: 6,
+            trimmed: false,
+        };
         try {
-            this.git.reset(ResetMode.HARD, ["origin/main"] )
+            await this.git.fetch();
+            await this.git.reset(ResetMode.HARD, ["origin/main"] )
             console.log("Git reset completed...")
         } catch (err) {
             if (err instanceof Error) {
@@ -53,7 +62,7 @@ export class Github {
         }
     }
 
-    publishChanges(): boolean {
+    async publishChanges(): Promise<boolean> {
         var committed = false;
         var CDK_MAIN_TS_DIR = process.env.CDK_MAIN_TS_DIR;
         const debug = require('debug');
@@ -71,10 +80,10 @@ export class Github {
         this.git = simpleGit(this.options)
 
         try {
-            this.git.add(`${CDK_MAIN_TS_DIR}/main.ts`)
+            await this.git.add(`${CDK_MAIN_TS_DIR}/main.ts`)
             console.log(`${CDK_MAIN_TS_DIR}/main.ts`)
-            this.git.commit("Updating CDKTF main.ts");
-            this.git.push();
+            await this.git.commit("Updating CDKTF main.ts");
+            await this.git.push();
             committed = true;
         } catch (err) {
             if (err instanceof Error) {
