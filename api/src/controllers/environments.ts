@@ -102,7 +102,6 @@ export class EnvironmentsController {
                     },
                     ExpressionAttributeNames: {
                         '#s': 'status',
-                        '#n': 'notes',
                     },
                     ReturnValues: 'ALL_NEW'
                 };
