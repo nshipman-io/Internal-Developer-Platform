@@ -27,6 +27,7 @@ export class EnvironmentsController {
             trimmed: false,
         };
 
+        this.github.setOptions(options);
     }
 
     //TODO Add a helper function that builds update dynamodb params
