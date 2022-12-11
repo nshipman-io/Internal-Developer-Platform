@@ -17,7 +17,7 @@ export class Github {
             trimmed: false,
         };
 
-        this.git = simpleGit(this.options);
+        this.git = simpleGit();
     }
 
     /*
@@ -25,6 +25,11 @@ export class Github {
             - npm install in the infrastructure directory
             - cdktf get in the infrastructure directory
      */
+
+    setOptions(options: Partial<SimpleGitOptions>) {
+        this.options = options;
+        this.git = simpleGit(this.options)
+    }
 
     async cloneCdkRepo() {
         console.log("Cloning CDKTF Infrastructure directory");
@@ -42,14 +47,7 @@ export class Github {
 
     async resetCdkRepo() {
         console.log("Resetting cdktf repo to HEAD");
-        console.log("Ensuring git working directory is CDK working directory for local development")
 
-        this.options = {
-            baseDir: process.env.CDK_MAIN_TS_DIR,
-            binary: 'git',
-            maxConcurrentProcesses: 6,
-            trimmed: false,
-        };
         try {
             await this.git.fetch();
             await this.git.reset(ResetMode.HARD, ["origin/main"] )
@@ -68,16 +66,6 @@ export class Github {
         const debug = require('debug');
         debug.enable('simple-git,simple-git:*');
         console.log("Committing cdktf main.ts changes to repo...")
-        console.log("Ensuring git working directory is CDK working directory for local development")
-
-        this.options = {
-            baseDir: process.env.CDK_MAIN_TS_DIR,
-            binary: 'git',
-            maxConcurrentProcesses: 6,
-            trimmed: false,
-        };
-
-        this.git = simpleGit(this.options)
 
         try {
             await this.git.add(`${CDK_MAIN_TS_DIR}/main.ts`)

@@ -19,7 +19,14 @@ export class EnvironmentsController {
         });
 
         this.github = new Github();
-        this.github.options.baseDir = process.env.CDK_MAIN_TS_DIR;
+
+        let options = {
+            baseDir: process.env.CDK_MAIN_TS_DIR,
+            binary: 'git',
+            maxConcurrentProcesses: 6,
+            trimmed: false,
+        };
+
     }
 
     //TODO Add a helper function that builds update dynamodb params
