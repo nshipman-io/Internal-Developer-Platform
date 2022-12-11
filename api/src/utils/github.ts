@@ -1,5 +1,9 @@
 import {ResetMode, SimpleGit, simpleGit, SimpleGitOptions} from "simple-git";
 
+/*
+ TODO: Refactor this to use child_process instead.
+ */
+
 export class Github {
     public options: Partial<SimpleGitOptions>
     public git: SimpleGit
@@ -52,10 +56,20 @@ export class Github {
     publishChanges(): boolean {
         var committed = false;
         var CDK_MAIN_TS_DIR = process.env.CDK_MAIN_TS_DIR;
-        //const debug = require('debug');
-        //debug.enable('simple-git,simple-git:*');
-
+        const debug = require('debug');
+        debug.enable('simple-git,simple-git:*');
         console.log("Committing cdktf main.ts changes to repo...")
+        console.log("Ensuring git working directory is CDK working directory for local development")
+
+        this.options = {
+            baseDir: process.env.CDK_MAIN_TS_DIR,
+            binary: 'git',
+            maxConcurrentProcesses: 6,
+            trimmed: false,
+        };
+
+        this.git = simpleGit(this.options)
+
         try {
             this.git.add(`${CDK_MAIN_TS_DIR}/main.ts`)
             console.log(`${CDK_MAIN_TS_DIR}/main.ts`)
