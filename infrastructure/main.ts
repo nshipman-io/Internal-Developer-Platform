@@ -14,11 +14,4 @@ new PetAppStack(app, "petapp-dev-stack", getBaseConfig(base), {
 });
 
 
-
-
-
-
-
-
-
 app.synth();
