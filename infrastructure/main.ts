@@ -18,4 +18,7 @@ new PetAppStack(app, "petapp-dev-stack", getBaseConfig(base), {
 
 
 
+new PetAppStack(app, "nshipman-dev", getBaseConfig(base), {"\"branch\"":"\"feature/newPets\""})
+
+
 app.synth();
